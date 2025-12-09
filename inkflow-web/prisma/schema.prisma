@@ -1,0 +1,300 @@
+// Prisma schema for InkFlow
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== User & Auth ====================
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  name             String?
+  avatarUrl        String?  @map("avatar_url")
+  subscriptionTier String   @default("free") @map("subscription_tier")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  novels     Novel[]
+  accounts   Account[]
+  sessions   Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ==================== Novel & Chapters ====================
+
+model Novel {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  title       String
+  description String?  @db.Text
+  genre       String?
+  coverUrl    String?  @map("cover_url")
+  wordCount   Int      @default(0) @map("word_count")
+  status      String   @default("draft")
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  volumes      Volume[]
+  chapters     Chapter[]
+  characters   Character[]
+  relationships CharacterRelationship[]
+  locations    Location[]
+  items        Item[]
+  wikiEntries  WikiEntry[]
+  changeLogs   ChangeLog[]
+
+  @@index([userId])
+  @@map("novels")
+}
+
+model Volume {
+  id          String   @id @default(cuid())
+  novelId     String   @map("novel_id")
+  title       String
+  description String?  @db.Text
+  sortOrder   Int      @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  novel    Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  chapters Chapter[]
+
+  @@index([novelId])
+  @@map("volumes")
+}
+
+model Chapter {
+  id          String   @id @default(cuid())
+  novelId     String   @map("novel_id")
+  volumeId    String?  @map("volume_id")
+  title       String
+  content     String   @default("") @db.Text
+  summary     String?  @db.Text
+  wordCount   Int      @default(0) @map("word_count")
+  sortOrder   Int      @map("sort_order")
+  status      String   @default("draft")
+  outlineData Json?    @map("outline_data")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  novel                Novel                @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  volume               Volume?              @relation(fields: [volumeId], references: [id], onDelete: SetNull)
+  characterStates      CharacterState[]
+  characterFirstAppear Character[]          @relation("FirstAppearance")
+  itemFirstAppear      Item[]               @relation("ItemFirstAppearance")
+  relationshipEstablished CharacterRelationship[] @relation("RelationshipEstablished")
+  changeLogs           ChangeLog[]
+
+  @@index([novelId])
+  @@index([volumeId])
+  @@map("chapters")
+}
+
+// ==================== Characters & Relationships ====================
+
+model Character {
+  id                      String   @id @default(cuid())
+  novelId                 String   @map("novel_id")
+  name                    String
+  aliases                 String[] @default([])
+  avatarUrl               String?  @map("avatar_url")
+  description             String?  @db.Text
+  personality             String?  @db.Text
+  background              String?  @db.Text
+  attributes              Json     @default("{}")
+  firstAppearanceChapterId String?  @map("first_appearance_chapter_id")
+  isProtagonist           Boolean  @default(false) @map("is_protagonist")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  novel                Novel                   @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  firstAppearanceChapter Chapter?              @relation("FirstAppearance", fields: [firstAppearanceChapterId], references: [id], onDelete: SetNull)
+  states               CharacterState[]
+  relationshipsFrom    CharacterRelationship[] @relation("FromCharacter")
+  relationshipsTo      CharacterRelationship[] @relation("ToCharacter")
+  ownedItems           Item[]
+
+  @@index([novelId])
+  @@map("characters")
+}
+
+model CharacterState {
+  id          String   @id @default(cuid())
+  characterId String   @map("character_id")
+  chapterId   String   @map("chapter_id")
+  stateType   String   @map("state_type")
+  stateKey    String   @map("state_key")
+  stateValue  String   @map("state_value") @db.Text
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  chapter   Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId])
+  @@index([chapterId])
+  @@map("character_states")
+}
+
+model CharacterRelationship {
+  id                    String   @id @default(cuid())
+  novelId               String   @map("novel_id")
+  fromCharacterId       String   @map("from_character_id")
+  toCharacterId         String   @map("to_character_id")
+  relationshipType      String   @map("relationship_type")
+  description           String?  @db.Text
+  strength              Int      @default(50)
+  establishedChapterId  String?  @map("established_chapter_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  novel               Novel      @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  fromCharacter       Character  @relation("FromCharacter", fields: [fromCharacterId], references: [id], onDelete: Cascade)
+  toCharacter         Character  @relation("ToCharacter", fields: [toCharacterId], references: [id], onDelete: Cascade)
+  establishedChapter  Chapter?   @relation("RelationshipEstablished", fields: [establishedChapterId], references: [id], onDelete: SetNull)
+
+  @@unique([fromCharacterId, toCharacterId])
+  @@index([novelId])
+  @@map("character_relationships")
+}
+
+// ==================== World Building ====================
+
+model Location {
+  id                  String   @id @default(cuid())
+  novelId             String   @map("novel_id")
+  name                String
+  parentId            String?  @map("parent_id")
+  description         String?  @db.Text
+  environmentKeywords String[] @default([]) @map("environment_keywords")
+  mapData             Json?    @map("map_data")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  // Relations
+  novel    Novel      @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  parent   Location?  @relation("LocationHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Location[] @relation("LocationHierarchy")
+
+  @@index([novelId])
+  @@index([parentId])
+  @@map("locations")
+}
+
+model Item {
+  id                      String   @id @default(cuid())
+  novelId                 String   @map("novel_id")
+  name                    String
+  category                String
+  description             String?  @db.Text
+  attributes              Json     @default("{}")
+  ownerId                 String?  @map("owner_id")
+  firstAppearanceChapterId String?  @map("first_appearance_chapter_id")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  // Relations
+  novel                  Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  owner                  Character? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  firstAppearanceChapter Chapter?  @relation("ItemFirstAppearance", fields: [firstAppearanceChapterId], references: [id], onDelete: SetNull)
+
+  @@index([novelId])
+  @@index([ownerId])
+  @@map("items")
+}
+
+model WikiEntry {
+  id        String   @id @default(cuid())
+  novelId   String   @map("novel_id")
+  category  String
+  title     String
+  content   String   @db.Text
+  tags      String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@index([novelId])
+  @@index([novelId, category])
+  @@map("wiki_entries")
+}
+
+// ==================== Auto Archive ====================
+
+model ChangeLog {
+  id          String   @id @default(cuid())
+  novelId     String   @map("novel_id")
+  chapterId   String?  @map("chapter_id")
+  changeType  String   @map("change_type")
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  oldValue    Json?    @map("old_value")
+  newValue    Json     @map("new_value")
+  description String   @db.Text
+  isConfirmed Boolean  @default(false) @map("is_confirmed")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  novel   Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+
+  @@index([novelId])
+  @@index([novelId, isConfirmed])
+  @@map("change_logs")
+}
