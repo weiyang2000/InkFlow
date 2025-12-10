@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -19,9 +21,10 @@ import {
   User,
   Moon,
   Sun,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react'
-import { useUIStore } from '@/lib/store'
+import { useUIStore, useAuthStore } from '@/lib/store'
 
 interface HeaderProps {
   title?: string
@@ -29,10 +32,34 @@ interface HeaderProps {
 }
 
 export function Header({ title, showSearch = true }: HeaderProps) {
+  const router = useRouter()
   const { theme, setTheme, openSearch } = useUIStore()
+  const { user, profile, isLoading, signOut, initialize, isInitialized } = useAuthStore()
+
+  // 初始化认证状态
+  useEffect(() => {
+    if (!isInitialized) {
+      initialize()
+    }
+  }, [initialize, isInitialized])
 
   const toggleTheme = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark')
+  }
+
+  const handleSignOut = async () => {
+    await signOut()
+    router.push('/login')
+  }
+
+  // 获取用户显示名称
+  const displayName = profile?.name || user?.email?.split('@')[0] || '用户'
+  const displayEmail = user?.email || ''
+  const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url || ''
+
+  // 获取头像首字母
+  const getInitials = (name: string) => {
+    return name.charAt(0).toUpperCase()
   }
 
   return (
@@ -83,18 +110,22 @@ export function Header({ title, showSearch = true }: HeaderProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src="/avatars/user.png" alt="User" />
-                <AvatarFallback>U</AvatarFallback>
-              </Avatar>
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={avatarUrl} alt={displayName} />
+                  <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+                </Avatar>
+              )}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">用户名</p>
+                <p className="text-sm font-medium leading-none">{displayName}</p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  user@example.com
+                  {displayEmail}
                 </p>
               </div>
             </DropdownMenuLabel>
@@ -112,8 +143,16 @@ export function Header({ title, showSearch = true }: HeaderProps) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600">
-              <LogOut className="mr-2 h-4 w-4" />
+            <DropdownMenuItem
+              className="text-red-600 cursor-pointer"
+              onClick={handleSignOut}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <LogOut className="mr-2 h-4 w-4" />
+              )}
               <span>退出登录</span>
             </DropdownMenuItem>
           </DropdownMenuContent>

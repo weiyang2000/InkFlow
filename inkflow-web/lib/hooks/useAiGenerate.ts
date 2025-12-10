@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useEditorStore } from '@/lib/store'
 import type { WritingMode, GenerateStreamEvent, PlanOption } from '@/lib/types'
 
@@ -24,7 +24,14 @@ export function useAiGenerate(options: UseAiGenerateOptions) {
     appendStreamingContent,
     clearStreamingContent,
     currentMode,
+    content,
   } = useEditorStore()
+
+  // Use ref to always get latest content without adding to dependencies
+  const contentRef = useRef(content)
+  useEffect(() => {
+    contentRef.current = content
+  }, [content])
 
   const generate = useCallback(
     async (instruction?: string, mode?: WritingMode, planId?: string) => {
@@ -38,6 +45,16 @@ export function useAiGenerate(options: UseAiGenerateOptions) {
       // Create abort controller for cancellation
       abortControllerRef.current = new AbortController()
 
+      // Extract plain text from HTML content for context (last ~2000 chars)
+      const extractTextFromHtml = (html: string): string => {
+        const text = html.replace(/<[^>]*>/g, '')
+        // Take last 2000 characters for context
+        return text.length > 2000 ? text.slice(-2000) : text
+      }
+
+      // Get latest content from ref
+      const previousContent = extractTextFromHtml(contentRef.current)
+
       try {
         const response = await fetch('/api/ai/generate', {
           method: 'POST',
@@ -49,6 +66,7 @@ export function useAiGenerate(options: UseAiGenerateOptions) {
             chapterId,
             mode: mode || currentMode,
             instruction,
+            previousContent,
             planId,
           }),
           signal: abortControllerRef.current.signal,

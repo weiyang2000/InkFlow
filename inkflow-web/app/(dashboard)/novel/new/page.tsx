@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select'
 import { ArrowLeft, Sparkles } from 'lucide-react'
 import Link from 'next/link'
+import { useCreateNovel } from '@/lib/hooks/useNovels'
 
 const genres = [
   { value: 'fantasy', label: '玄幻' },
@@ -32,7 +33,8 @@ const genres = [
 
 export default function NewNovelPage() {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
+  const createNovel = useCreateNovel()
+  const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -41,13 +43,20 @@ export default function NewNovelPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+    setError(null)
 
-    // TODO: API call to create novel
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      const novel = await createNovel.mutateAsync({
+        title: formData.title.trim(),
+        description: formData.description.trim() || undefined,
+        genre: formData.genre || undefined,
+      })
 
-    // Navigate to the new novel
-    router.push('/novel/new-id/editor')
+      // Navigate to the new novel's editor
+      router.push(`/novel/${novel.id}/editor`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '创建失败，请重试')
+    }
   }
 
   return (
@@ -140,6 +149,13 @@ export default function NewNovelPage() {
                   </CardContent>
                 </Card>
 
+                {/* Error message */}
+                {error && (
+                  <div className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+                    {error}
+                  </div>
+                )}
+
                 {/* Submit */}
                 <div className="flex justify-end gap-3">
                   <Link href="/dashboard">
@@ -147,8 +163,8 @@ export default function NewNovelPage() {
                       取消
                     </Button>
                   </Link>
-                  <Button type="submit" disabled={isLoading || !formData.title}>
-                    {isLoading ? '创建中...' : '创建作品'}
+                  <Button type="submit" disabled={createNovel.isPending || !formData.title.trim()}>
+                    {createNovel.isPending ? '创建中...' : '创建作品'}
                   </Button>
                 </div>
               </form>

@@ -4,133 +4,86 @@ import { useParams } from 'next/navigation'
 import { Header } from '@/components/layout'
 import { RelationshipGraph } from '@/components/wiki'
 import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
-import type { Character, CharacterRelationship } from '@/lib/types'
+import { Plus, Loader2, Network } from 'lucide-react'
+import { useCharacters, useCharacterRelationships } from '@/lib/hooks/useNovels'
+import type { Character as LocalCharacter, CharacterRelationship as LocalRelationship } from '@/lib/types'
+import type { Character as DbCharacter, CharacterRelationship as DbRelationship } from '@/lib/types/database'
 
-// Mock data
-const mockCharacters: Character[] = [
-  {
-    id: '1',
-    novelId: '1',
-    name: '萧炎',
-    aliases: ['炎帝'],
-    description: '主角',
-    personality: '',
-    background: '',
-    avatarUrl: '',
-    attributes: {},
-    isProtagonist: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '2',
-    novelId: '1',
-    name: '药老',
-    aliases: [],
-    description: '导师',
-    avatarUrl: '',
-    attributes: {},
-    isProtagonist: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '3',
-    novelId: '1',
-    name: '萧薰儿',
-    aliases: [],
-    description: '',
-    avatarUrl: '',
-    attributes: {},
-    isProtagonist: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '4',
-    novelId: '1',
-    name: '纳兰嫣然',
-    aliases: [],
-    description: '',
-    avatarUrl: '',
-    attributes: {},
-    isProtagonist: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '5',
-    novelId: '1',
-    name: '云韵',
-    aliases: [],
-    description: '',
-    avatarUrl: '',
-    attributes: {},
-    isProtagonist: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-]
+// Convert database character to local character type
+function toLocalCharacter(dbChar: DbCharacter): LocalCharacter {
+  return {
+    id: dbChar.id,
+    novelId: dbChar.novel_id,
+    name: dbChar.name,
+    aliases: dbChar.aliases,
+    description: dbChar.description || '',
+    personality: dbChar.personality || '',
+    background: dbChar.background || '',
+    avatarUrl: dbChar.avatar_url || '',
+    attributes: dbChar.attributes as Record<string, unknown>,
+    isProtagonist: dbChar.is_protagonist,
+    createdAt: new Date(dbChar.created_at),
+    updatedAt: new Date(dbChar.updated_at),
+  }
+}
 
-const mockRelationships: CharacterRelationship[] = [
-  {
-    id: '1',
-    novelId: '1',
-    fromCharacterId: '2',
-    toCharacterId: '1',
-    relationshipType: 'master',
-    description: '药老是萧炎的导师',
-    strength: 90,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '2',
-    novelId: '1',
-    fromCharacterId: '1',
-    toCharacterId: '3',
-    relationshipType: 'lover',
-    description: '青梅竹马，深爱对方',
-    strength: 95,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '3',
-    novelId: '1',
-    fromCharacterId: '4',
-    toCharacterId: '1',
-    relationshipType: 'rival',
-    description: '曾经解除婚约',
-    strength: 60,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '4',
-    novelId: '1',
-    fromCharacterId: '5',
-    toCharacterId: '1',
-    relationshipType: 'friend',
-    description: '亦师亦友',
-    strength: 80,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-]
+// Convert database relationship to local relationship type
+function toLocalRelationship(dbRel: DbRelationship): LocalRelationship {
+  return {
+    id: dbRel.id,
+    novelId: dbRel.novel_id,
+    fromCharacterId: dbRel.from_character_id,
+    toCharacterId: dbRel.to_character_id,
+    relationshipType: dbRel.relationship_type as LocalRelationship['relationshipType'],
+    description: dbRel.description || '',
+    strength: dbRel.strength,
+    createdAt: new Date(dbRel.created_at),
+    updatedAt: new Date(dbRel.updated_at),
+  }
+}
 
 export default function GraphPage() {
   const params = useParams()
   const novelId = params.novelId as string
 
-  const handleNodeClick = (character: Character) => {
+  const { data: characters = [], isLoading: charactersLoading, error: charactersError } = useCharacters(novelId)
+  const { data: relationships = [], isLoading: relationsLoading, error: relationsError } = useCharacterRelationships(novelId)
+
+  const isLoading = charactersLoading || relationsLoading
+  const error = charactersError || relationsError
+
+  const handleNodeClick = (character: LocalCharacter) => {
     console.log('Clicked character:', character)
   }
 
-  const handleEdgeClick = (relationship: CharacterRelationship) => {
+  const handleEdgeClick = (relationship: LocalRelationship) => {
     console.log('Clicked relationship:', relationship)
   }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full">
+        <Header title="关系图谱" />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col h-full">
+        <Header title="关系图谱" />
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-destructive">加载失败：{error.message}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const localCharacters = characters.map(toLocalCharacter)
+  const localRelationships = relationships.map(toLocalRelationship)
 
   return (
     <div className="flex flex-col h-full">
@@ -145,13 +98,24 @@ export default function GraphPage() {
           </Button>
         </div>
 
-        {/* Graph */}
-        <RelationshipGraph
-          characters={mockCharacters}
-          relationships={mockRelationships}
-          onNodeClick={handleNodeClick}
-          onEdgeClick={handleEdgeClick}
-        />
+        {/* Empty state */}
+        {characters.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center h-full">
+            <Network className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">暂无人物</h3>
+            <p className="text-muted-foreground mb-4">
+              请先添加人物后再查看关系图谱
+            </p>
+          </div>
+        ) : (
+          /* Graph */
+          <RelationshipGraph
+            characters={localCharacters}
+            relationships={localRelationships}
+            onNodeClick={handleNodeClick}
+            onEdgeClick={handleEdgeClick}
+          />
+        )}
       </div>
     </div>
   )

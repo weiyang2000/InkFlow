@@ -3,6 +3,7 @@ import { devtools, persist } from 'zustand/middleware'
 
 type Theme = 'light' | 'dark' | 'system'
 type SidebarTab = 'chapters' | 'wiki' | 'ai'
+type AiPanelTab = 'generate' | 'chat' | 'characters'
 
 interface UIState {
   // Theme
@@ -17,6 +18,8 @@ interface UIState {
   isOutlineVisible: boolean
   isAiPanelOpen: boolean
   aiPanelWidth: number
+  aiPanelTab: AiPanelTab
+  currentChapterId: string | null
 
   // Modals
   isSettingsOpen: boolean
@@ -38,6 +41,9 @@ interface UIState {
   toggleAiPanel: () => void
   setAiPanelOpen: (open: boolean) => void
   setAiPanelWidth: (width: number) => void
+  setAiPanelTab: (tab: AiPanelTab) => void
+  openAiPanelWithTab: (tab: AiPanelTab) => void
+  setCurrentChapterId: (chapterId: string | null) => void
 
   openSettings: () => void
   closeSettings: () => void
@@ -62,6 +68,8 @@ export const useUIStore = create<UIState>()(
         isOutlineVisible: false,
         isAiPanelOpen: false,
         aiPanelWidth: 360,
+        aiPanelTab: 'generate',
+        currentChapterId: null,
         isSettingsOpen: false,
         isExportOpen: false,
         isSearchOpen: false,
@@ -82,6 +90,9 @@ export const useUIStore = create<UIState>()(
         toggleAiPanel: () => set((state) => ({ isAiPanelOpen: !state.isAiPanelOpen })),
         setAiPanelOpen: (isAiPanelOpen) => set({ isAiPanelOpen }),
         setAiPanelWidth: (aiPanelWidth) => set({ aiPanelWidth }),
+        setAiPanelTab: (aiPanelTab) => set({ aiPanelTab }),
+        openAiPanelWithTab: (aiPanelTab) => set({ isAiPanelOpen: true, aiPanelTab }),
+        setCurrentChapterId: (currentChapterId) => set({ currentChapterId }),
 
         // Modals
         openSettings: () => set({ isSettingsOpen: true }),

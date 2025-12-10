@@ -33,6 +33,18 @@ export function Editor({
   const editorContainerRef = useRef<HTMLDivElement>(null)
   // Track how much streaming content has been inserted
   const insertedLengthRef = useRef(0)
+  // Track if this is the initial mount to prevent store sync overwriting initialContent
+  const isInitialMountRef = useRef(true)
+
+  // Initialize store content with initialContent on mount
+  useEffect(() => {
+    setContent(initialContent)
+    // After initial sync, allow store sync
+    const timer = setTimeout(() => {
+      isInitialMountRef.current = false
+    }, 100)
+    return () => clearTimeout(timer)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const editor = useEditor({
     extensions: [
@@ -109,9 +121,10 @@ export function Editor({
     },
   })
 
-  // Sync content from store if it changes externally
+  // Sync content from store if it changes externally (e.g., AI generation)
+  // Skip during initial mount to prevent overwriting initialContent
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
+    if (editor && !isInitialMountRef.current && content !== editor.getHTML()) {
       editor.commands.setContent(content)
     }
   }, [editor, content])
