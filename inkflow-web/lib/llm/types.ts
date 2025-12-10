@@ -2,7 +2,7 @@
 
 export type LLMProvider = 'openai' | 'anthropic' | 'deepseek' | 'custom'
 
-export type LLMFunction = 'generate' | 'plan'
+export type LLMFunction = 'generate' | 'plan' | 'outline' | 'extract'
 
 export interface ProviderConfig {
   apiKey: string

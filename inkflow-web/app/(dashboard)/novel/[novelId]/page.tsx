@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Header } from '@/components/layout'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
   FileText,
@@ -12,35 +12,52 @@ import {
   MapPin,
   Sword,
   Network,
-  Settings,
   Play,
   Clock,
   TrendingUp,
-  BarChart3
+  BarChart3,
+  Loader2
 } from 'lucide-react'
-
-// Mock data
-const mockNovel = {
-  id: '1',
-  title: '斗破苍穹：新篇',
-  description: '一个少年从废柴逆袭成为斗帝的故事，在这片大陆上，强者为尊，少年萧炎因天赋消失而被家族冷落...',
-  genre: '玄幻',
-  wordCount: 125000,
-  targetWordCount: 200000,
-  chapterCount: 48,
-  characterCount: 15,
-  locationCount: 8,
-  itemCount: 23,
-  status: 'draft',
-  createdAt: new Date('2024-01-01'),
-  updatedAt: new Date('2024-01-15'),
-}
+import { useNovel, useChapters, useCharacters, useLocations, useItems } from '@/lib/hooks/useNovels'
 
 export default function NovelOverviewPage() {
   const params = useParams()
   const novelId = params.novelId as string
 
-  const progress = (mockNovel.wordCount / mockNovel.targetWordCount) * 100
+  const { data: novel, isLoading: novelLoading, error: novelError } = useNovel(novelId)
+  const { data: chapters = [] } = useChapters(novelId)
+  const { data: characters = [] } = useCharacters(novelId)
+  const { data: locations = [] } = useLocations(novelId)
+  const { data: items = [] } = useItems(novelId)
+
+  if (novelLoading) {
+    return (
+      <div className="flex flex-col h-full">
+        <Header title="加载中..." />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    )
+  }
+
+  if (novelError || !novel) {
+    return (
+      <div className="flex flex-col h-full">
+        <Header title="错误" />
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-destructive">
+            {novelError?.message || '小说不存在或无权访问'}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Get target word count from settings or use a default
+  const settings = novel.settings as { targetWordCount?: number } | null
+  const targetWordCount = settings?.targetWordCount || 200000
+  const progress = (novel.word_count / targetWordCount) * 100
 
   const quickLinks = [
     {
@@ -52,21 +69,21 @@ export default function NovelOverviewPage() {
     },
     {
       title: '人物管理',
-      description: `${mockNovel.characterCount} 个人物`,
+      description: `${characters.length} 个人物`,
       href: `/novel/${novelId}/wiki/characters`,
       icon: Users,
       color: 'text-green-500',
     },
     {
       title: '地点管理',
-      description: `${mockNovel.locationCount} 个地点`,
+      description: `${locations.length} 个地点`,
       href: `/novel/${novelId}/wiki/locations`,
       icon: MapPin,
       color: 'text-amber-500',
     },
     {
       title: '物品/功法',
-      description: `${mockNovel.itemCount} 个条目`,
+      description: `${items.length} 个条目`,
       href: `/novel/${novelId}/wiki/items`,
       icon: Sword,
       color: 'text-purple-500',
@@ -89,7 +106,7 @@ export default function NovelOverviewPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title={mockNovel.title} />
+      <Header title={novel.title} />
 
       <div className="flex-1 p-6 space-y-6 overflow-auto">
         {/* Hero section */}
@@ -98,24 +115,24 @@ export default function NovelOverviewPage() {
             <div className="flex items-start justify-between">
               <div className="space-y-4 flex-1">
                 <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold">{mockNovel.title}</h1>
-                  <Badge>{mockNovel.genre}</Badge>
+                  <h1 className="text-2xl font-bold">{novel.title}</h1>
+                  {novel.genre && <Badge>{novel.genre}</Badge>}
                 </div>
                 <p className="text-muted-foreground max-w-2xl">
-                  {mockNovel.description}
+                  {novel.description || '暂无简介'}
                 </p>
                 <div className="flex items-center gap-6 text-sm">
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span>{mockNovel.chapterCount} 章</span>
+                    <span>{chapters.length} 章</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                    <span>{(mockNovel.wordCount / 10000).toFixed(1)}万字</span>
+                    <span>{(novel.word_count / 10000).toFixed(1)}万字</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span>更新于 {mockNovel.updatedAt.toLocaleDateString('zh-CN')}</span>
+                    <span>更新于 {new Date(novel.updated_at).toLocaleDateString('zh-CN')}</span>
                   </div>
                 </div>
               </div>
@@ -137,8 +154,8 @@ export default function NovelOverviewPage() {
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between text-sm">
-                <span>当前字数: {(mockNovel.wordCount / 10000).toFixed(1)}万</span>
-                <span>目标: {(mockNovel.targetWordCount / 10000).toFixed(0)}万</span>
+                <span>当前字数: {(novel.word_count / 10000).toFixed(1)}万</span>
+                <span>目标: {(targetWordCount / 10000).toFixed(0)}万</span>
               </div>
               <div className="h-3 bg-secondary rounded-full overflow-hidden">
                 <div
@@ -147,7 +164,7 @@ export default function NovelOverviewPage() {
                 />
               </div>
               <p className="text-sm text-muted-foreground">
-                已完成 {progress.toFixed(1)}%，距离目标还差 {((mockNovel.targetWordCount - mockNovel.wordCount) / 10000).toFixed(1)}万字
+                已完成 {progress.toFixed(1)}%，距离目标还差 {((targetWordCount - novel.word_count) / 10000).toFixed(1)}万字
               </p>
             </div>
           </CardContent>
@@ -179,24 +196,29 @@ export default function NovelOverviewPage() {
           </div>
         </div>
 
-        {/* Recent activity */}
+        {/* Stats overview */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">最近活动</CardTitle>
+            <CardTitle className="text-lg">内容统计</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { action: '更新了第48章《决战之巅》', time: '2小时前' },
-                { action: '添加新人物「药老」', time: '5小时前' },
-                { action: '更新了「炎帝」的人物关系', time: '昨天' },
-                { action: '创建新地点「陨落之地」', time: '2天前' },
-              ].map((activity, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
-                  <span className="text-sm">{activity.action}</span>
-                  <span className="text-xs text-muted-foreground">{activity.time}</span>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-secondary/50 rounded-lg">
+                <div className="text-2xl font-bold">{chapters.length}</div>
+                <div className="text-sm text-muted-foreground">章节</div>
+              </div>
+              <div className="text-center p-4 bg-secondary/50 rounded-lg">
+                <div className="text-2xl font-bold">{characters.length}</div>
+                <div className="text-sm text-muted-foreground">人物</div>
+              </div>
+              <div className="text-center p-4 bg-secondary/50 rounded-lg">
+                <div className="text-2xl font-bold">{locations.length}</div>
+                <div className="text-sm text-muted-foreground">地点</div>
+              </div>
+              <div className="text-center p-4 bg-secondary/50 rounded-lg">
+                <div className="text-2xl font-bold">{items.length}</div>
+                <div className="text-sm text-muted-foreground">物品</div>
+              </div>
             </div>
           </CardContent>
         </Card>

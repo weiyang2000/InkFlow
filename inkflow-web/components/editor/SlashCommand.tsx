@@ -185,13 +185,53 @@ export function SlashCommandMenu({
     setSearch(searchQuery)
   }, [searchQuery])
 
+  // Calculate adjusted position to keep menu within viewport
+  const [adjustedPosition, setAdjustedPosition] = useState(position)
+
+  useEffect(() => {
+    if (!isOpen || !position || !menuRef.current) return
+
+    // Get menu dimensions (estimate before render, then adjust)
+    const menuWidth = 288 // w-72 = 18rem = 288px
+    const menuHeight = 400 // Approximate max height
+
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+
+    let newTop = position.top
+    let newLeft = position.left
+
+    // Check right boundary
+    if (position.left + menuWidth > viewportWidth - 16) {
+      newLeft = Math.max(16, viewportWidth - menuWidth - 16)
+    }
+
+    // Check bottom boundary - if menu would go below viewport, show above cursor
+    if (position.top + menuHeight > viewportHeight - 16) {
+      // Position above the cursor (subtract estimated cursor line height + padding)
+      newTop = Math.max(16, position.top - menuHeight - 32)
+    }
+
+    // Check left boundary
+    if (newLeft < 16) {
+      newLeft = 16
+    }
+
+    // Check top boundary
+    if (newTop < 16) {
+      newTop = 16
+    }
+
+    setAdjustedPosition({ top: newTop, left: newLeft })
+  }, [isOpen, position])
+
   if (!isOpen) return null
 
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 w-72 rounded-lg border bg-popover shadow-lg"
-      style={position ? { top: position.top, left: position.left } : undefined}
+      className="fixed z-50 w-72 rounded-lg border bg-popover shadow-lg max-h-[400px] overflow-hidden"
+      style={adjustedPosition ? { top: adjustedPosition.top, left: adjustedPosition.left } : undefined}
     >
       <Command>
         <CommandInput

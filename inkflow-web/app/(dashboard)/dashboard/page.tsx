@@ -10,7 +10,8 @@ import {
   BookOpen,
   Clock,
   FileText,
-  MoreHorizontal
+  MoreHorizontal,
+  Loader2
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -18,54 +19,81 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-
-// Mock data for demo
-const mockNovels = [
-  {
-    id: '1',
-    title: '斗破苍穹：新篇',
-    description: '一个少年从废柴逆袭成为斗帝的故事...',
-    genre: '玄幻',
-    wordCount: 125000,
-    chapterCount: 48,
-    status: 'draft',
-    updatedAt: new Date('2024-01-15'),
-  },
-  {
-    id: '2',
-    title: '都市之最强神医',
-    description: '退役兵王回归都市，以医术征服世界...',
-    genre: '都市',
-    wordCount: 89000,
-    chapterCount: 35,
-    status: 'publishing',
-    updatedAt: new Date('2024-01-10'),
-  },
-  {
-    id: '3',
-    title: '诡秘世界',
-    description: '穿越到蒸汽朋克世界，成为神秘的占卜师...',
-    genre: '悬疑',
-    wordCount: 210000,
-    chapterCount: 82,
-    status: 'completed',
-    updatedAt: new Date('2024-01-01'),
-  },
-]
+import { useNovels, useDeleteNovel } from '@/lib/hooks/useNovels'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { useState } from 'react'
 
 const genreColors: Record<string, string> = {
   玄幻: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
   都市: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
   悬疑: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+  仙侠: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
+  科幻: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200',
+  历史: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+  言情: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200',
 }
 
 const statusLabels: Record<string, string> = {
   draft: '草稿',
   publishing: '连载中',
   completed: '已完结',
+  archived: '已归档',
 }
 
 export default function DashboardPage() {
+  const { data: novels = [], isLoading, error } = useNovels()
+  const deleteNovel = useDeleteNovel()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [novelToDelete, setNovelToDelete] = useState<string | null>(null)
+
+  const handleDeleteClick = (novelId: string) => {
+    setNovelToDelete(novelId)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (novelToDelete) {
+      await deleteNovel.mutateAsync(novelToDelete)
+      setDeleteDialogOpen(false)
+      setNovelToDelete(null)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full">
+        <Header title="我的作品" />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col h-full">
+        <Header title="我的作品" />
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-destructive">加载失败：{error.message}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const totalWordCount = novels.reduce((sum, n) => sum + (n.word_count || 0), 0)
+  const publishingCount = novels.filter(n => n.status === 'publishing').length
+  const completedCount = novels.filter(n => n.status === 'completed').length
+
   return (
     <div className="flex flex-col h-full">
       <Header title="我的作品" />
@@ -79,7 +107,7 @@ export default function DashboardPage() {
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockNovels.length}</div>
+              <div className="text-2xl font-bold">{novels.length}</div>
             </CardContent>
           </Card>
           <Card>
@@ -89,7 +117,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {(mockNovels.reduce((sum, n) => sum + n.wordCount, 0) / 10000).toFixed(1)}万
+                {(totalWordCount / 10000).toFixed(1)}万
               </div>
             </CardContent>
           </Card>
@@ -99,9 +127,7 @@ export default function DashboardPage() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {mockNovels.filter(n => n.status === 'publishing').length}
-              </div>
+              <div className="text-2xl font-bold">{publishingCount}</div>
             </CardContent>
           </Card>
           <Card>
@@ -110,9 +136,7 @@ export default function DashboardPage() {
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {mockNovels.filter(n => n.status === 'completed').length}
-              </div>
+              <div className="text-2xl font-bold">{completedCount}</div>
             </CardContent>
           </Card>
         </div>
@@ -130,7 +154,7 @@ export default function DashboardPage() {
 
         {/* Novel list */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {mockNovels.map((novel) => (
+          {novels.map((novel) => (
             <Card key={novel.id} className="group hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -144,11 +168,13 @@ export default function DashboardPage() {
                       </Link>
                     </CardTitle>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className={genreColors[novel.genre]}>
-                        {novel.genre}
-                      </Badge>
+                      {novel.genre && (
+                        <Badge variant="secondary" className={genreColors[novel.genre] || ''}>
+                          {novel.genre}
+                        </Badge>
+                      )}
                       <Badge variant="outline">
-                        {statusLabels[novel.status]}
+                        {statusLabels[novel.status] || novel.status}
                       </Badge>
                     </div>
                   </div>
@@ -169,7 +195,10 @@ export default function DashboardPage() {
                       <DropdownMenuItem asChild>
                         <Link href={`/novel/${novel.id}/settings`}>作品设置</Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600">
+                      <DropdownMenuItem
+                        className="text-red-600"
+                        onClick={() => handleDeleteClick(novel.id)}
+                      >
                         删除作品
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -178,13 +207,12 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <CardDescription className="line-clamp-2 mb-4">
-                  {novel.description}
+                  {novel.description || '暂无简介'}
                 </CardDescription>
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>{novel.chapterCount} 章</span>
-                  <span>{(novel.wordCount / 10000).toFixed(1)}万字</span>
+                  <span>{(novel.word_count / 10000).toFixed(1)}万字</span>
                   <span>
-                    更新于 {novel.updatedAt.toLocaleDateString('zh-CN')}
+                    更新于 {new Date(novel.updated_at).toLocaleDateString('zh-CN')}
                   </span>
                 </div>
               </CardContent>
@@ -201,7 +229,37 @@ export default function DashboardPage() {
             </Card>
           </Link>
         </div>
+
+        {novels.length === 0 && (
+          <div className="text-center py-12">
+            <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">还没有作品</h3>
+            <p className="text-muted-foreground mb-4">
+              点击上方按钮创建你的第一部作品
+            </p>
+          </div>
+        )}
       </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除作品？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作将永久删除该作品及其所有章节、人物、地点等数据，且无法恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteNovel.isPending ? '删除中...' : '确认删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

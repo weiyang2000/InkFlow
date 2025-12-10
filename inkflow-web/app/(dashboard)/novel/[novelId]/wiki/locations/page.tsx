@@ -6,47 +6,83 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Search, MapPin, MoreHorizontal } from 'lucide-react'
+import { Plus, Search, MapPin, MoreHorizontal, Loader2 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useLocations } from '@/lib/hooks/useNovels'
+import { useMemo, useState } from 'react'
+import type { Location } from '@/lib/types/database'
 
-// Mock data
-const mockLocations = [
-  {
-    id: '1',
-    name: '乌坦城',
-    description: '萧家所在的城市，帝国边境大城',
-    environmentKeywords: ['繁华', '城墙', '商队'],
-    children: [
-      { id: '1-1', name: '萧家大院', description: '萧家祖宅' },
-      { id: '1-2', name: '纳兰家', description: '纳兰家族在城中的府邸' },
-    ],
-  },
-  {
-    id: '2',
-    name: '云岚宗',
-    description: '加玛帝国第一大宗门',
-    environmentKeywords: ['云雾', '悬崖', '宗门大殿'],
-    children: [],
-  },
-  {
-    id: '3',
-    name: '魔兽山脉',
-    description: '充满危险魔兽的广袤山脉',
-    environmentKeywords: ['原始森林', '魔兽', '危险'],
-    children: [
-      { id: '3-1', name: '蛇女族领地', description: '蛇人族聚居地' },
-    ],
-  },
-]
+// Build tree structure from flat locations
+interface LocationNode extends Location {
+  children: LocationNode[]
+}
+
+function buildLocationTree(locations: Location[]): LocationNode[] {
+  const map = new Map<string, LocationNode>()
+  const roots: LocationNode[] = []
+
+  // First pass: create nodes
+  locations.forEach(loc => {
+    map.set(loc.id, { ...loc, children: [] })
+  })
+
+  // Second pass: build tree
+  locations.forEach(loc => {
+    const node = map.get(loc.id)!
+    if (loc.parent_id && map.has(loc.parent_id)) {
+      map.get(loc.parent_id)!.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  })
+
+  return roots
+}
 
 export default function LocationsPage() {
   const params = useParams()
   const novelId = params.novelId as string
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const { data: locations = [], isLoading, error } = useLocations(novelId)
+
+  const locationTree = useMemo(() => buildLocationTree(locations), [locations])
+
+  const filteredLocations = useMemo(() => {
+    if (!searchQuery.trim()) return locationTree
+    const query = searchQuery.toLowerCase()
+    return locationTree.filter(loc =>
+      loc.name.toLowerCase().includes(query) ||
+      loc.description?.toLowerCase().includes(query)
+    )
+  }, [locationTree, searchQuery])
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full">
+        <Header title="地点管理" />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col h-full">
+        <Header title="地点管理" />
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-destructive">加载失败：{error.message}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -57,7 +93,12 @@ export default function LocationsPage() {
         <div className="flex items-center gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="搜索地点..." className="pl-10" />
+            <Input
+              placeholder="搜索地点..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
@@ -69,13 +110,24 @@ export default function LocationsPage() {
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-1">
             <MapPin className="h-4 w-4" />
-            <span>共 {mockLocations.length} 个主要地点</span>
+            <span>共 {locations.length} 个地点</span>
           </div>
         </div>
 
+        {/* Empty state */}
+        {locations.length === 0 && (
+          <div className="text-center py-12">
+            <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">暂无地点</h3>
+            <p className="text-muted-foreground mb-4">
+              点击上方按钮添加你的第一个地点
+            </p>
+          </div>
+        )}
+
         {/* Location list */}
         <div className="space-y-4">
-          {mockLocations.map((location) => (
+          {filteredLocations.map((location) => (
             <Card key={location.id} className="group">
               <CardContent className="pt-6">
                 <div className="flex items-start justify-between">
@@ -84,16 +136,20 @@ export default function LocationsPage() {
                       <MapPin className="h-5 w-5 text-amber-500" />
                       <h3 className="font-semibold">{location.name}</h3>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {location.description}
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {location.environmentKeywords.map((keyword) => (
-                        <Badge key={keyword} variant="secondary" className="text-xs">
-                          {keyword}
-                        </Badge>
-                      ))}
-                    </div>
+                    {location.description && (
+                      <p className="text-sm text-muted-foreground">
+                        {location.description}
+                      </p>
+                    )}
+                    {location.environment_keywords && location.environment_keywords.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {location.environment_keywords.map((keyword) => (
+                          <Badge key={keyword} variant="secondary" className="text-xs">
+                            {keyword}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -121,9 +177,11 @@ export default function LocationsPage() {
                         <div className="flex items-center gap-2">
                           <MapPin className="h-4 w-4 text-muted-foreground" />
                           <span className="text-sm font-medium">{child.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {child.description}
-                          </span>
+                          {child.description && (
+                            <span className="text-xs text-muted-foreground">
+                              {child.description}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}

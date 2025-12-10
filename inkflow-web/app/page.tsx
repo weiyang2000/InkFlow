@@ -9,10 +9,13 @@ import {
   FileText,
   Users,
   ArrowRight,
-  CheckCircle2
+  CheckCircle2,
+  LayoutDashboard
 } from 'lucide-react'
+import { getServerUser } from '@/lib/supabase/server'
 
-export default function HomePage() {
+export default async function HomePage() {
+  const user = await getServerUser()
   const features = [
     {
       icon: Sparkles,
@@ -65,12 +68,23 @@ export default function HomePage() {
             <span className="text-xl font-bold">InkFlow</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/login">
-              <Button variant="ghost">登录</Button>
-            </Link>
-            <Link href="/register">
-              <Button>免费试用</Button>
-            </Link>
+            {user ? (
+              <Link href="/dashboard">
+                <Button className="gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  返回工作台
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost">登录</Button>
+                </Link>
+                <Link href="/register">
+                  <Button>免费试用</Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -91,7 +105,7 @@ export default function HomePage() {
           <div className="flex items-center justify-center gap-4 pt-4">
             <Link href="/dashboard">
               <Button size="lg" className="gap-2">
-                开始创作
+                {user ? '继续创作' : '开始创作'}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
@@ -176,13 +190,17 @@ export default function HomePage() {
       {/* CTA */}
       <section className="container mx-auto px-4 py-20 text-center">
         <div className="max-w-2xl mx-auto space-y-6">
-          <h2 className="text-3xl font-bold">准备好开始创作了吗？</h2>
+          <h2 className="text-3xl font-bold">
+            {user ? '欢迎回来，继续你的创作之旅' : '准备好开始创作了吗？'}
+          </h2>
           <p className="text-muted-foreground text-lg">
-            免费注册，体验 AI 辅助写作的魅力
+            {user
+              ? '你的作品正在工作台等待着你'
+              : '免费注册，体验 AI 辅助写作的魅力'}
           </p>
           <Link href="/dashboard">
             <Button size="lg" className="gap-2">
-              立即开始
+              {user ? '进入工作台' : '立即开始'}
               <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
